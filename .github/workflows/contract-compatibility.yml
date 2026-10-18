@@ -1,0 +1,75 @@
+name: Contract compatibility
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - 'api/**'
+      - 'contracts/**'
+      - 'cmd/audit-contract-provider/**'
+      - 'internal/adapter/in/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/contract-compatibility.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  openapi-breaking-change:
+    name: OpenAPI semantic version and breaking-change gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check semantic version
+        shell: bash
+        run: |
+          version="$(awk '$1 == "version:" { print $2; exit }' api/openapi/audit.yaml)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "OpenAPI info.version must be semantic versioning"; exit 1; }
+      - name: Compare against develop with oasdiff
+        shell: bash
+        run: |
+          base_dir="$(mktemp -d)"
+          trap 'rm -rf "$base_dir"' EXIT
+          git show "origin/${{ github.base_ref }}:api/openapi/audit.yaml" > "$base_dir/audit.yaml"
+          docker run --rm \
+            -v "$base_dir:/base:ro" \
+            -v "$PWD/api/openapi:/candidate:ro" \
+            tufin/oasdiff:latest breaking /base/audit.yaml /candidate/audit.yaml --fail-on ERR
+
+  event-schema:
+    name: Canonical event JSON Schema gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+      - run: go test ./internal/adapter/in/amqp -run TestCanonicalEventSchemaMatchesWorkerEnvelopeRules -count=1
+
+  pact-provider:
+    name: Pact provider verification - audit-mfe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+      - name: Start deterministic provider harness
+        shell: bash
+        run: |
+          go run ./cmd/audit-contract-provider > /tmp/audit-contract-provider.log 2>&1 &
+          echo $! > /tmp/audit-contract-provider.pid
+          for attempt in {1..30}; do curl -fsS http://127.0.0.1:18080/health && exit 0; sleep 1; done
+          cat /tmp/audit-contract-provider.log
+          exit 1
+      - name: Verify consumer Pact against provider
+        shell: bash
+        run: |
+          trap 'kill "$(cat /tmp/audit-contract-provider.pid)"' EXIT
+          docker run --rm --network host -v "$PWD/contracts/pact:/pacts:ro" pactfoundation/pact-cli:1.5.0.5 \
+            pact_verifier_cli --provider-name audit-query-api \
+            --hostname 127.0.0.1 --port 18080 \
+            --file /pacts/audit-mfe-audit-query-api.json --no-colour

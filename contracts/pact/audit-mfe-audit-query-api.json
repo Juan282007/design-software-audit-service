@@ -1,0 +1,43 @@
+{
+  "consumer": { "name": "audit-mfe" },
+  "provider": { "name": "audit-query-api" },
+  "interactions": [{
+    "description": "a paginated audit-record listing request",
+    "request": {
+      "method": "GET", "path": "/api/v1/audit-records", "query": { "limit": ["10"] },
+      "headers": { "Accept": "application/json", "Authorization": "Bearer pact-contract-token" },
+      "matchingRules": { "header": { "Authorization": { "combine": "AND", "matchers": [{ "match": "regex", "regex": "^Bearer .+$" }] } } }
+    },
+    "response": {
+      "status": 200,
+      "headers": { "Content-Type": "application/json" },
+      "body": {
+        "data": [{
+          "id": "10000000-0000-4000-8000-000000000001",
+          "event_id": "10000000-0000-4000-8000-000000000002",
+          "event_type": "USER_LOGIN", "source_service": "iam-service",
+          "actor_id": null, "entity_type": null, "entity_id": null, "event_occurred_at": null,
+          "received_at": "2026-10-18T12:00:00Z"
+        }],
+        "pagination": { "next_cursor": null, "limit": 10, "has_more": false }
+      },
+      "matchingRules": {
+        "body": {
+          "$.data": { "combine": "AND", "matchers": [{ "match": "type", "min": 1 }] },
+          "$.data[*].id": { "combine": "AND", "matchers": [{ "match": "regex", "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" }] },
+          "$.data[*].event_id": { "combine": "AND", "matchers": [{ "match": "regex", "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" }] },
+          "$.data[*].event_type": { "combine": "AND", "matchers": [{ "match": "type" }] },
+          "$.data[*].source_service": { "combine": "AND", "matchers": [{ "match": "type" }] },
+          "$.data[*].received_at": { "combine": "AND", "matchers": [{ "match": "datetime", "format": "yyyy-MM-dd'T'HH:mm:ssX" }] },
+          "$.pagination.limit": { "combine": "AND", "matchers": [{ "match": "integer" }] },
+          "$.pagination.has_more": { "combine": "AND", "matchers": [{ "match": "type" }] }
+        }
+      }
+    }
+  }],
+  "metadata": {
+    "pact-js": { "version": "15.0.1" },
+    "pactRust": { "ffi": "0.4.28", "models": "1.3.5" },
+    "pactSpecification": { "version": "3.0.0" }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.horarios-sena.local/events/audit-consumed-event/1.0.0",
+  "title": "Audit consumed canonical event envelope",
+  "description": "Canonical envelope accepted by audit-worker. The payload remains an opaque JSON object.",
+  "type": "object",
+  "required": ["event_id", "event_type", "version", "timestamp", "source_service", "payload"],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "format": "date-time", "pattern": "Z$" },
+    "source_service": { "type": "string", "minLength": 1 },
+    "correlation_id": { "type": ["string", "null"], "format": "uuid" },
+    "actor_id": { "type": ["string", "null"], "format": "uuid" },
+    "entity_type": { "type": ["string", "null"], "minLength": 1 },
+    "entity_id": { "type": ["string", "null"], "format": "uuid" },
+    "training_center_id": { "type": ["string", "null"], "format": "uuid" },
+    "payload": { "type": "object" }
+  },
+  "additionalProperties": true
+}
